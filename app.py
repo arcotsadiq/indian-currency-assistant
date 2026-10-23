@@ -1,58 +1,121 @@
 
-import streamlit as st
 import json
+import os
+from pathlib import Path
+
+import gdown
+import streamlit as st
+import torch
+from PIL import Image
+from ultralytics import YOLO
 
 st.set_page_config(
     page_title="Indian Currency Assistant",
     page_icon="💵",
-    layout="centered"
 )
 
 st.title("Indian Currency Assistant")
-st.subheader("Accessible currency recognition")
-st.write(
-    "Upload an Indian banknote image or use your camera. "
-    "Voice output is available in English."
+st.write("Indian banknote detection with English voice assistance.")
+
+MODEL_PATH = Path("best.pt")
+MODEL_URL = (
+    "https://drive.google.com/uc?id="
+    "1-TbbTaMc7EWI-H36IioKaAVaEtGXER9E"
 )
 
-image = st.camera_input("Capture a banknote")
+@st.cache_resource
+def load_model():
+    if not MODEL_PATH.exists():
+        result = gdown.download(
+            MODEL_URL,
+            str(MODEL_PATH),
+            quiet=False,
+            fuzzy=True,
+        )
+        if not result or not MODEL_PATH.exists():
+            raise RuntimeError(
+                "Could not download the model from Google Drive. "
+                "Check the sharing permissions and try again."
+            )
 
-if image is None:
-    image = st.file_uploader(
+    return YOLO(str(MODEL_PATH))
+
+
+try:
+    with st.spinner("Loading currency recognition model..."):
+        model = load_model()
+    st.success("Currency recognition model loaded.")
+except Exception as exc:
+    st.error(f"Model could not be loaded: {exc}")
+    st.stop()
+
+image_file = st.camera_input("Capture an Indian banknote")
+
+if image_file is None:
+    image_file = st.file_uploader(
         "Or upload a banknote image",
-        type=["jpg", "jpeg", "png"]
+        type=["jpg", "jpeg", "png"],
     )
 
-if st.button("Identify Currency", type="primary"):
-    if image is None:
-        st.warning("Please upload or capture an image.")
-    else:
-        st.image(image, caption="Captured banknote", width=300)
-        st.info(
-            "Image received. The currency recognition model "
-            "is not connected yet, so the denomination cannot "
-            "be identified at this stage."
-        )
+if image_file is not None:
+    image = Image.open(image_file).convert("RGB")
+    st.image(image, caption="Input image", width=400)
 
-        st.session_state["speech_text"] = (
-            "Image received. The currency recognition model "
-            "is not connected yet."
-        )
+    if st.button("Identify Currency", type="primary"):
+        with st.spinner("Analyzing image..."):
+            results = model.predict(image, conf=0.25, verbose=False)
+            result = results[0]
+            names = result.names
+            boxes = result.boxes
+
+            if boxes is None or len(boxes) == 0:
+                message = (
+                    "No currency note was detected. "
+                    "Try a clearer image with good lighting."
+                )
+                st.warning(message)
+            else:
+                detected = []
+                for box in boxes:
+                    class_id = int(box.cls.item())
+                    confidence = float(box.conf.item())
+                    label = str(names[class_id])
+                    detected.append((label, confidence))
+
+                st.image(
+                    result.plot(),
+                    caption="Detection results",
+                    width=600,
+                )
+
+                st.subheader("Detected currency")
+                for label, confidence in detected:
+                    st.write(
+                        f"**{label}** — confidence {confidence:.1%}"
+                    )
+
+                labels_text = ", ".join(
+                    label for label, _ in detected
+                )
+                message = f"Detected currency: {labels_text}."
+
+            st.session_state["speech_text"] = message
 
 if st.button("Read Result Aloud"):
-    text = st.session_state.get("speech_text", "")
-    if text:
+    speech_text = st.session_state.get("speech_text", "")
+    if speech_text:
+        safe_text = json.dumps(speech_text)
         st.components.v1.html(
             f"""
             <script>
-            const text = {json.dumps(text)};
+            const message = {safe_text};
+            const utterance = new SpeechSynthesisUtterance(message);
+            utterance.lang = "en-IN";
             window.speechSynthesis.cancel();
-            const speech = new SpeechSynthesisUtterance(text);
-            speech.lang = "en-IN";
-            window.speechSynthesis.speak(speech);
+            window.speechSynthesis.speak(utterance);
             </script>
             """,
-            height=0
+            height=0,
         )
     else:
-        st.warning("Please identify an image first.")
+        st.warning("Identify an image first.")
