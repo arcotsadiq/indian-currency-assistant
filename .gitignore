@@ -1,0 +1,20 @@
+
+# Python environment and cache
+.venv/
+__pycache__/
+*.py[cod]
+
+# YOLO model weights and training outputs
+*.pt
+runs/
+
+# Dataset and generated image files
+data/
+*.jpg
+*.jpeg
+*.png
+
+# Local environment and editor files
+.env
+.vscode/
+.idea/
