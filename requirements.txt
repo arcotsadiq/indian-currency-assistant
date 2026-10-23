@@ -4,4 +4,4 @@ ultralytics
 torch
 Pillow
 gdown
-
+opencv-python-headless
