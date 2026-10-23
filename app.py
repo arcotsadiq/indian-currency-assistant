@@ -27,11 +27,10 @@ MODEL_URL = (
 def load_model():
     if not MODEL_PATH.exists():
         result = gdown.download(
-            MODEL_URL,
-            str(MODEL_PATH),
-            quiet=False,
-            fuzzy=True,
-        )
+    MODEL_URL,
+    str(MODEL_PATH),
+    quiet=False,
+)
         if not result or not MODEL_PATH.exists():
             raise RuntimeError(
                 "Could not download the model from Google Drive. "
