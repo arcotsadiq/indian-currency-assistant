@@ -1,2 +1,6 @@
 
-gradio
+streamlit
+ultralytics
+torch
+Pillow
+
