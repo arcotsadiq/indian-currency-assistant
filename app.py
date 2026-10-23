@@ -1,72 +1,58 @@
 
-import gradio as gr
+import streamlit as st
 import json
 
+st.set_page_config(
+    page_title="Indian Currency Assistant",
+    page_icon="💵",
+    layout="centered"
+)
 
-def detect_currency(image):
+st.title("Indian Currency Assistant")
+st.subheader("Accessible currency recognition")
+st.write(
+    "Upload an Indian banknote image or use your camera. "
+    "Voice output is available in English."
+)
+
+image = st.camera_input("Capture a banknote")
+
+if image is None:
+    image = st.file_uploader(
+        "Or upload a banknote image",
+        type=["jpg", "jpeg", "png"]
+    )
+
+if st.button("Identify Currency", type="primary"):
     if image is None:
-        return "Please upload an image or capture a currency note."
-
-    # Model integration will be added in the next stage.
-    return (
-        "Image received successfully. The currency recognition model "
-        "is not connected yet, so a denomination cannot be predicted."
-    )
-
-
-def prepare_speech(text):
-    return json.dumps(text)
-
-
-with gr.Blocks(title="Indian Currency Assistant") as demo:
-    gr.Markdown(
-        """
-        # Indian Currency Assistant
-        ### Accessible currency recognition for visually impaired people
-
-        Upload a picture or use your camera to capture an Indian banknote.
-        """
-    )
-
-    with gr.Row():
-        image = gr.Image(
-            label="Upload or capture a banknote",
-            sources=["upload", "webcam"],
-            type="pil"
+        st.warning("Please upload or capture an image.")
+    else:
+        st.image(image, caption="Captured banknote", width=300)
+        st.info(
+            "Image received. The currency recognition model "
+            "is not connected yet, so the denomination cannot "
+            "be identified at this stage."
         )
 
-    identify_button = gr.Button(
-        "Identify Currency",
-        variant="primary"
-    )
+        st.session_state["speech_text"] = (
+            "Image received. The currency recognition model "
+            "is not connected yet."
+        )
 
-    result = gr.Textbox(
-        label="Result",
-        interactive=False,
-        lines=3
-    )
-
-    identify_button.click(
-        fn=detect_currency,
-        inputs=image,
-        outputs=result
-    )
-
-    speak_button = gr.Button("Read Result Aloud")
-
-    speak_button.click(
-        fn=prepare_speech,
-        inputs=result,
-        outputs=None,
-        js="""
-        (text) => {
-            if (!text || !text.trim()) return;
+if st.button("Read Result Aloud"):
+    text = st.session_state.get("speech_text", "")
+    if text:
+        st.components.v1.html(
+            f"""
+            <script>
+            const text = {json.dumps(text)};
             window.speechSynthesis.cancel();
             const speech = new SpeechSynthesisUtterance(text);
             speech.lang = "en-IN";
             window.speechSynthesis.speak(speech);
-        }
-        """
-    )
-
-demo.launch()
+            </script>
+            """,
+            height=0
+        )
+    else:
+        st.warning("Please identify an image first.")
